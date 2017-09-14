@@ -1,5 +1,5 @@
 let Koa = require('koa')
-let router = require('./router')
+let router = require('./routers/index')
 let config = require('config')
 
 let server = new Koa()
