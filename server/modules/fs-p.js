@@ -16,7 +16,7 @@ exports.stat = function (path) {
                 }
             }
 
-            console.log(stat)
+            // console.log(stat)
             resolve(stat)
         })
     })

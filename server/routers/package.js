@@ -1,8 +1,10 @@
-var Package = require('../modules/package')
+var Package = require('../models/package')
+var packageDao = require('../dao/package')
+var fileDao = require('../dao/file')
 
 async function mountPackage(ctx, next) {
     var [name, version] = ctx.params.nameAndVersion.split('@')
-    var pkg = await Package.create(name, version)
+    var pkg = await Package.create(name, version, packageDao, fileDao)
 
     ctx.pkg = pkg
 
@@ -18,11 +20,13 @@ async function packageVersions(ctx) {
 }
 
 async function packageFileList(ctx) {
-    ctx.body = await ctx.pkg.fileList()
+    ctx.body = await ctx.pkg.files()
 }
 
 async function packageFile(ctx) {
-    ctx.body = await ctx.pkg.file(ctx.params.filePath)
+    var file = await ctx.pkg.file(ctx.params.filePath)
+
+    ctx.body = file
 }
 
 exports.mountPackage = mountPackage
