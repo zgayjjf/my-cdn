@@ -10,6 +10,6 @@ server.listen(config.get('port'), function () {
     console.log(config.port, 5)
 })
 
-process.on('uncaughtException', function (err) {
-    console.log(err)
-})
+// process.on('uncaughtException', function (err) {
+//     console.log(err)
+// })

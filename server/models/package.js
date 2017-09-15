@@ -7,6 +7,7 @@ var packageDao = require('../dao/package')
 var fileDao = require('../dao/file')
 var fsp = require('../modules/fs-p')
 var config = require('config')
+var Error = require('../error/index')
 
 var registry = config.get('registry')
 var downloadDir = config.get('npmTempDir')
@@ -119,7 +120,12 @@ class Package {
                     .on("error", function (err) {
                         reject(err)
                     })
-            }).catch(reject)
+            }).catch(function (err) {
+                if (err.response.status === 404) {
+                    reject(new Error.E404(`${_this.name}@${_this.version}`))
+                }
+                reject(err)
+            })
         })
     }
 

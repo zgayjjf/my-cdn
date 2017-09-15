@@ -1,6 +1,7 @@
 var Package = require('../models/package')
 var packageDao = require('../dao/package')
 var fileDao = require('../dao/file')
+var mime = require('mime')
 
 async function mountPackage(ctx, next) {
     var [name, version] = ctx.params.nameAndVersion.split('@')
@@ -25,7 +26,9 @@ async function packageFileList(ctx) {
 
 async function packageFile(ctx) {
     var file = await ctx.pkg.file(ctx.params.filePath)
-
+    ctx.set('Content-Type', mime.getType(ctx.params.filePath))
+    ctx.set('Cache-Control', 'max-age=31536000')
+    ctx.set('Access-Control-Allow-Origin', '*')
     ctx.body = file
 }
 
