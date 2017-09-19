@@ -5,6 +5,7 @@ var db = require('../db/index')
 class Package extends Base {
     constructor(config) {
         super(db, 'package', [
+            'id',
             'name',
             'version'
         ])

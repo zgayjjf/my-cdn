@@ -63,6 +63,9 @@ class Package {
             pkg.downloadDir = path.resolve(downloadDir, name, version)
         }
 
+        await pkg.download()
+        this.packageId = await pkg.savePackageToDb()
+
         // 将该包加入缓存后，移除超缓存限制的包
         this.packages.unshift(pkg)
         if (this.packages.length > MAX_PACKAGE_CACHE_LENGTH) {
@@ -96,47 +99,63 @@ class Package {
     }
 
     async download() {
-        var downloadDir = this.downloadDir
-        var _this = this
+        var packageDownloaded = await this.packageDownloaded()
 
-        return new Promise(function (resolve, reject) {
-            console.log(`请求：${_this.tarball}`)
-            axios.get(_this.tarball, {
-                responseType: 'stream'
-            }).then(function (data) {
-                data.pipe(zlib.createGunzip())
-                    .pipe(tar.extract(downloadDir))
-                    .on("finish", function() {
-                        console.log(`tarball downloaded: ${_this.name} ${downloadDir}`)
+        if (packageDownloaded) {
+            return Promise.resolve(this.downloadDir)
+        } else {
+            var downloadDir = this.downloadDir
+            var _this = this
 
-                        _this._downloaded = true
+            return new Promise(function (resolve, reject) {
+                console.log(`请求：${_this.tarball}`)
+                axios.get(_this.tarball, {
+                    responseType: 'stream'
+                }).then(function (data) {
+                    data.pipe(zlib.createGunzip())
+                        .pipe(tar.extract(downloadDir))
+                        .on("finish", function () {
+                            console.log(`tarball downloaded: ${_this.name} ${downloadDir}`)
 
-                        resolve(downloadDir)
+                            _this._downloaded = true
 
-                        _this.savePackageToDb().then(function (result) {
-                            _this.saveFilesToDb(result.insertId)
+                            resolve(downloadDir)
                         })
-                    })
-                    .on("error", function (err) {
-                        reject(err)
-                    })
-            }).catch(function (err) {
-                if (err.response.status === 404) {
-                    reject(new Error.E404(`${_this.name}@${_this.version}`))
-                }
-                reject(err)
+                        .on("error", function (err) {
+                            reject(err)
+                        })
+                }).catch(function (err) {
+                    if (err.response.status === 404) {
+                        reject(new Error.E404(`${_this.name}@${_this.version}`))
+                    }
+                    reject(err)
+                })
             })
-        })
+        }
     }
 
     async savePackageToDb() {
-        // var info = await this.info()
+        var packageRows = await this.packageDao.find({
+            name: this.name,
+            version: this.version
+        })
+
+        if (packageRows.length) {
+            var row = packageRows[0]
+            this.packageId = row.package_id
+            return row.package_id
+        }
+
         var data = {
             name: this.name,
             version: this.version
         }
+
         var rows = await this.packageDao.add(data)
-        return rows
+
+        await this.saveFilesToDb(rows.insertId)
+
+        return rows.insertId
     }
 
     async updateFileStatus(fileId, data) {
@@ -173,13 +192,10 @@ class Package {
     }
 
     async files() {
-        var packageDownloaded = await this.packageDownloaded()
+        await this.download()
 
-        if (!packageDownloaded) {
-            await this.download()
-        }
-
-        return await fsp.ls(this.downloadDir)
+        var files = await fsp.ls(this.downloadDir)
+        return files
     }
 
     async file(pathToFile) {
