@@ -7,6 +7,7 @@ var packageDao = require('../dao/package')
 var fileDao = require('../dao/file')
 var fsp = require('../modules/fs-p')
 var config = require('config')
+var semver = require('semver')
 var Error = require('../error/index')
 
 var registry = config.get('registry')
@@ -39,49 +40,65 @@ class Package {
      */
 
     static async create(name, version = 'latest'/*, packageDao, fileDao*/) {
-        var pkg
+        var info = await Package.info(name)
+
+        if (version === 'latest') {
+            version = info['dist-tags'].latest
+        } else {
+            var versions = Package.extractVersions(info)
+
+            version = semver.maxSatisfying(versions, version)
+        }
+
         // 如果缓存中存在该包，直接返回
-        if (version !== 'latest') {
-            for (var i = 0; i < this.packages.length; i++) {
-                pkg = this.packages[i]
-                if (pkg.name === name && pkg.version === version) {
-                    return pkg
-                }
+        for (var i = 0, cachedPkg; i < Package.cachedPackages.length; i++) {
+            cachedPkg = Package.cachedPackages[i]
+            if (cachedPkg.name === name && cachedPkg.version === version) {
+                return cachedPkg
             }
         }
 
-        pkg = new this(name, version/*, packageDao, fileDao*/)
-
-        // 获取最新的包
-        if (version === 'latest') {
-            var info = await pkg.info()
-            version = info['dist-tags'].latest
-
-            pkg.version = version
-            pkg.registry = `${registry}/${name}`
-            pkg.tarball = `${registry}/${name}/download/${name}-${version}.tgz`
-            pkg.downloadDir = path.resolve(downloadDir, name, version)
-        }
+        var pkg = new Package(name, version/*, packageDao, fileDao*/)
 
         await pkg.download()
         pkg.packageId = await pkg.savePackageToDb()
 
         // 将该包加入缓存后，移除超缓存限制的包
-        this.packages.unshift(pkg)
-        if (this.packages.length > MAX_PACKAGE_CACHE_LENGTH) {
-            this.packages.length = MAX_PACKAGE_CACHE_LENGTH
+        Package.cachedPackages.unshift(pkg)
+        if (Package.cachedPackages.length > MAX_PACKAGE_CACHE_LENGTH) {
+            Package.cachedPackages.length = MAX_PACKAGE_CACHE_LENGTH
         }
 
         return pkg
     }
 
     // 获取包信息
+    static async info(packageName) {
+        var url = `${registry}/${packageName}`
+        try {
+            return await axios.get(url)
+        } catch (e) {
+            if (e.response.status === 404) {
+                throw new Error.E404(url)
+            }
+        }
+
+    }
+
+    static extractVersions(info) {
+        var versions = lodash.reduce(info.versions, function (arr, version) {
+            arr.push(version.version)
+            return arr
+        }, [])
+        return versions
+    }
+    // 获取包信息
     async info() {
         if (this._info) {
             return this._info
         }
 
-        var info = await axios.get(this.registry)
+        var info = await Package.info(this.name)
         this._info = info
 
         return info
@@ -90,12 +107,8 @@ class Package {
     // 获取包版本列表
     async versions() {
         var info = await this.info()
-        var versions = lodash.reduce(info.versions, function (arr, version) {
-            arr.push(version.version)
-            return arr
-        }, [])
 
-        return versions
+        return Package.extractVersions(info)
     }
 
     async download() {
@@ -207,6 +220,6 @@ class Package {
     }
 }
 
-Package.packages = []
+Package.cachedPackages = []
 
 module.exports = Package
