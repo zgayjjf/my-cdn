@@ -64,7 +64,7 @@ class Package {
         }
 
         await pkg.download()
-        this.packageId = await pkg.savePackageToDb()
+        pkg.packageId = await pkg.savePackageToDb()
 
         // 将该包加入缓存后，移除超缓存限制的包
         this.packages.unshift(pkg)
@@ -142,8 +142,7 @@ class Package {
 
         if (packageRows.length) {
             var row = packageRows[0]
-            this.packageId = row.package_id
-            return row.package_id
+            return row.id
         }
 
         var data = {
@@ -151,11 +150,11 @@ class Package {
             version: this.version
         }
 
-        var rows = await this.packageDao.add(data)
+        var saveRet = await this.packageDao.add(data)
 
-        await this.saveFilesToDb(rows.insertId)
+        await this.saveFilesToDb(saveRet.insertId)
 
-        return rows.insertId
+        return saveRet.insertId
     }
 
     async updateFileStatus(fileId, data) {
@@ -171,7 +170,7 @@ class Package {
 
     async saveFilesToDb(packageId) {
         var _this = this
-        var files = await this.files()
+        var files = await fsp.ls(this.downloadDir)
 
         await Promise.all(files.map(function (file) {
             return _this.saveFileToDb(file, packageId)
@@ -192,9 +191,9 @@ class Package {
     }
 
     async files() {
-        await this.download()
-
-        var files = await fsp.ls(this.downloadDir)
+        var files = await this.fileDao.find({
+            package_id: this.packageId
+        })
         return files
     }
 
