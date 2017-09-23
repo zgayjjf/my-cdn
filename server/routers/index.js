@@ -9,19 +9,13 @@ var helpers = require('../helpers')
 var router = new Router()
 // var npmTempDir = './package-temp'
 var npm = require('./package')
+var publish = require('./publish')
 
 router.get('/package/:nameAndVersion/info', npm.mountPackage, npm.packageInfo)
 router.get('/package/:nameAndVersion/info/versions', npm.mountPackage, npm.packageVersions)
 router.get('/package/:nameAndVersion/files', npm.mountPackage, npm.packageFileList)
 router.get('/package/:nameAndVersion/files/:filePath', npm.mountPackage, npm.packageFile)
 
-router.get('/publish', async function (ctx) {
-    var files = JSON.parse(ctx.query.files)
-    var publishedList = await Promise.all(files.map(async function (file) {
-        var published = helpers.publish(file)
-        return published
-    }))
-    ctx.body = publishedList
-})
+router.get('/publish', publish.publishToLocal)
 
 module.exports = router
