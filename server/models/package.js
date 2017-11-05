@@ -1,19 +1,19 @@
-var path = require('path')
-var axios = require('axios')
-var lodash = require('lodash')
-var zlib = require('zlib')
-var tar = require('tar-fs')
-var packageDao = require('../dao/package')
-var fileDao = require('../dao/file')
-var fsp = require('../modules/fs-p')
-var config = require('config')
-var semver = require('semver')
-var Error = require('../error/index')
+let path = require('path')
+let http = require('../modules/http')
+let lodash = require('lodash')
+let zlib = require('zlib')
+let tar = require('tar-fs')
+let packageDao = require('../dao/package')
+let fileDao = require('../dao/file')
+let fsp = require('../modules/fs-p')
+let config = require('config')
+let semver = require('semver')
+let Error = require('../error/index')
 
-var registry = config.get('registry')
-var downloadDir = config.get('npmTempDir')
+let registry = config.get('registry')
+let downloadDir = config.get('npmTempDir')
 
-axios.defaults.baseURL = registry
+http.defaults.baseURL = registry
 
 const MAX_PACKAGE_CACHE_LENGTH = 100
 
@@ -21,8 +21,8 @@ class Package {
     constructor(name, version/*, packageDao, fileDao*/) {
         this.name = name
         this.version = version
-        this.packageDao = packageDao
-        this.fileDao = fileDao
+        // this.packageDao = packageDao
+        // this.fileDao = fileDao
         this.registry = `${registry}/${name}`
         this.tarball = `${registry}/${name}/download/${name}-${version}.tgz`
         this.downloadDir = path.resolve(downloadDir, name, version)
@@ -40,25 +40,25 @@ class Package {
      */
 
     static async create(name, version = 'latest'/*, packageDao, fileDao*/) {
-        var info = await Package.info(name)
+        let info = await Package.info(name)
 
         if (version === 'latest') {
             version = info['dist-tags'].latest
         } else {
-            var versions = Package.extractVersions(info)
+            let versions = Package.extractVersions(info)
 
             version = semver.maxSatisfying(versions, version)
         }
 
         // 如果缓存中存在该包，直接返回
-        for (var i = 0, cachedPkg; i < Package.cachedPackages.length; i++) {
+        for (let i = 0, cachedPkg; i < Package.cachedPackages.length; i++) {
             cachedPkg = Package.cachedPackages[i]
             if (cachedPkg.name === name && cachedPkg.version === version) {
                 return cachedPkg
             }
         }
 
-        var pkg = new Package(name, version/*, packageDao, fileDao*/)
+        let pkg = new Package(name, version/*, packageDao, fileDao*/)
 
         await pkg.download()
         pkg.packageId = await pkg.savePackageToDb()
@@ -74,9 +74,9 @@ class Package {
 
     // 获取包信息
     static async info(packageName) {
-        var url = `${registry}/${packageName}`
+        let url = `${registry}/${packageName}`
         try {
-            return await axios.get(url)
+            return await http.get(url)
         } catch (e) {
             if (e.response.status === 404) {
                 throw new Error.E404(url)
@@ -86,7 +86,7 @@ class Package {
     }
 
     static extractVersions(info) {
-        var versions = lodash.reduce(info.versions, function (arr, version) {
+        let versions = lodash.reduce(info.versions, function (arr, version) {
             arr.push(version.version)
             return arr
         }, [])
@@ -98,7 +98,7 @@ class Package {
             return this._info
         }
 
-        var info = await Package.info(this.name)
+        let info = await Package.info(this.name)
         this._info = info
 
         return info
@@ -106,23 +106,23 @@ class Package {
 
     // 获取包版本列表
     async versions() {
-        var info = await this.info()
+        let info = await this.info()
 
         return Package.extractVersions(info)
     }
 
     async download() {
-        var packageDownloaded = await this.packageDownloaded()
+        let packageDownloaded = await this.packageDownloaded()
 
         if (packageDownloaded) {
             return Promise.resolve(this.downloadDir)
         } else {
-            var downloadDir = this.downloadDir
-            var _this = this
+            let downloadDir = this.downloadDir
+            let _this = this
 
             return new Promise(function (resolve, reject) {
                 console.log(`请求：${_this.tarball}`)
-                axios.get(_this.tarball, {
+                http.get(_this.tarball, {
                     responseType: 'stream'
                 }).then(function (data) {
                     data.pipe(zlib.createGunzip())
@@ -148,22 +148,22 @@ class Package {
     }
 
     async savePackageToDb() {
-        var packageRows = await this.packageDao.find({
+        let packageRows = await packageDao.find({
             name: this.name,
             version: this.version
         })
 
         if (packageRows.length) {
-            var row = packageRows[0]
+            let row = packageRows[0]
             return row.id
         }
 
-        var data = {
+        let data = {
             name: this.name,
             version: this.version
         }
 
-        var saveRet = await this.packageDao.add(data)
+        let saveRet = await packageDao.add(data)
 
         await this.saveFilesToDb(saveRet.insertId)
 
@@ -171,23 +171,25 @@ class Package {
     }
 
     async updateFileStatus(fileId, data) {
-        return await this.fileDao.update(data)
+        return await fileDao.update(data)
     }
 
-    async saveFileToDb(filePath, packageId) {
-        return await this.fileDao.add({
-            path: filePath,
-            package_id: packageId
-        })
-    }
+    // async saveFileToDb(filePath, packageId) {
+    //     return await fileDao.add({
+    //         path: filePath,
+    //         package_id: packageId
+    //     })
+    // }
 
     async saveFilesToDb(packageId) {
-        var _this = this
-        var files = await fsp.ls(this.downloadDir)
-
-        await Promise.all(files.map(function (file) {
-            return _this.saveFileToDb(file, packageId)
-        }))
+        let files = await fsp.ls(this.downloadDir)
+        let filesData = files.map(function (filePath) {
+            return {
+                path: filePath,
+                package_id: packageId
+            }
+        })
+        return await fileDao.add(filesData)
     }
 
     /**
@@ -204,14 +206,13 @@ class Package {
     }
 
     async files() {
-        var files = await this.fileDao.find({
+        return await fileDao.find({
             package_id: this.packageId
         })
-        return files
     }
 
     async file(pathToFile) {
-        var packageDownloaded = await this.packageDownloaded()
+        let packageDownloaded = await this.packageDownloaded()
 
         if (!packageDownloaded) {
             await this.download()

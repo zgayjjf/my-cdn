@@ -20,7 +20,7 @@ async function packageVersions(ctx) {
     ctx.body = await ctx.pkg.versions()
 }
 
-async function packageFileList(ctx) {
+async function packageFiles(ctx) {
     ctx.body = await ctx.pkg.files()
 }
 
@@ -34,6 +34,6 @@ async function packageFile(ctx) {
 
 exports.mountPackage = mountPackage
 exports.packageInfo = packageInfo
-exports.packageFileList = packageFileList
+exports.packageFiles = packageFiles
 exports.packageVersions = packageVersions
 exports.packageFile = packageFile

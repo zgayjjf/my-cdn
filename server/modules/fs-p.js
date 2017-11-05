@@ -32,13 +32,19 @@ exports.cp = function (src, dest) {
     return new Promise(function (resolve, reject) {
         var readStream = fs.createReadStream(src)
         var writeStream = fs.createWriteStream(dest)
-        readStream.pipe(writeStream)
-        writeStream.on('finish', function () {
-            resolve(true)
+        readStream.on('error', function (e) {
+            console.log(e)
         })
-        writeStream.on('error', function (error) {
-            reject(error)
+        writeStream.on('open', function () {
+            readStream.pipe(writeStream)
         })
+
+        // writeStream.on('finish', function () {
+        //     resolve(true)
+        // })
+        // writeStream.on('error', function (error) {
+        //     reject(error)
+        // })
     })
 }
 

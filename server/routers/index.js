@@ -1,21 +1,16 @@
-var path = require('path')
-// var request = require('request')
-var Router = require('koa-router')
-// var lodash = require('lodash')
-// var config = require('config')
-// var http = require('../modules/http')
-// var fsp = require('../modules/fs-p')
-var helpers = require('../helpers')
-var router = new Router()
-// var npmTempDir = './package-temp'
-var npm = require('./package')
-var publish = require('./publish')
+// let path = require('path')
+// let helpers = require('../helpers')
+let Router = require('koa-router')
+let router = new Router()
+let npm = require('./package')
+let publish = require('./publish')
 
-router.get('/package/:nameAndVersion/info', npm.mountPackage, npm.packageInfo)
-router.get('/package/:nameAndVersion/info/versions', npm.mountPackage, npm.packageVersions)
-router.get('/package/:nameAndVersion/files', npm.mountPackage, npm.packageFileList)
-router.get('/package/:nameAndVersion/files/:filePath', npm.mountPackage, npm.packageFile)
+router.get('/npm/:nameAndVersion/info', npm.mountPackage, npm.packageInfo)
+router.get('/npm/:nameAndVersion/versions', npm.mountPackage, npm.packageVersions)
+router.get('/npm/:nameAndVersion/files', npm.mountPackage, npm.packageFiles)
+router.get('/npm/:nameAndVersion/files/:filePath', npm.mountPackage, npm.packageFile)
 
-router.get('/publish', publish.publishToLocal)
+router.post('/npm/:nameAndVersion/publish', npm.mountPackage, publish.publishToLocal)
+router.post('/npm/:nameAndVersion/publish_confirm', npm.mountPackage, publish.publishToLocal)
 
 module.exports = router
